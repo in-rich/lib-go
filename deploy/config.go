@@ -1,6 +1,9 @@
 package deploy
 
-import "github.com/goccy/go-yaml"
+import (
+	"github.com/goccy/go-yaml"
+	"os"
+)
 
 type ConfigFile struct {
 	file []byte
@@ -27,7 +30,8 @@ func LoadConfig[Cfg any](files ...ConfigFile) *Cfg {
 
 	for _, file := range files {
 		if file.env == ENV || file.env == "" {
-			if err := yaml.Unmarshal(file.file, &out); err != nil {
+			expanded := os.ExpandEnv(string(file.file))
+			if err := yaml.Unmarshal([]byte(expanded), &out); err != nil {
 				panic(err)
 			}
 		}
