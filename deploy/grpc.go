@@ -10,6 +10,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	grpcMetadata "google.golang.org/grpc/metadata"
 	"log"
 	"net"
@@ -74,9 +77,12 @@ func CloseGRPCConn(conn *grpc.ClientConn) {
 //
 // You must ensure to properly close the server when you are done, using the CloseGRPCServer method.
 //
-//	listener, server := deploy.StartGRPCServer(50051)
+//	listener, server, health := deploy.StartGRPCServer(50051)
+//	// Graceful shutdown.
 //	defer deploy.CloseGRPCServer(listener, server)
-func StartGRPCServer(port int) (net.Listener, *grpc.Server) {
+//	// Start healthcheck.
+//	go health()
+func StartGRPCServer(port int) (net.Listener, *grpc.Server, func()) {
 	if port == 0 {
 		log.Fatal("port is required")
 	}
@@ -86,7 +92,31 @@ func StartGRPCServer(port int) (net.Listener, *grpc.Server) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	return listener, grpc.NewServer()
+	server := grpc.NewServer()
+
+	// Set healthcheck.
+	// https://github.com/grpc/grpc-go/blob/master/examples/features/health/server/main.go
+	healthcheck := health.NewServer()
+	healthgrpc.RegisterHealthServer(server, healthcheck)
+
+	healthUpdater := func() {
+		// asynchronously inspect dependencies and toggle serving status as needed
+		next := healthpb.HealthCheckResponse_SERVING
+
+		for {
+			healthcheck.SetServingStatus("", next)
+
+			if next == healthpb.HealthCheckResponse_SERVING {
+				next = healthpb.HealthCheckResponse_NOT_SERVING
+			} else {
+				next = healthpb.HealthCheckResponse_SERVING
+			}
+
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	return listener, server, healthUpdater
 }
 
 // CloseGRPCServer closes an existing GRPC server.
