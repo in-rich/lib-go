@@ -4,14 +4,13 @@ go 1.23.1
 
 require (
 	github.com/goccy/go-yaml v1.12.0
-	github.com/in-rich/proto/proto-go v0.0.0-20240919060641-0c5a0c9c4746
 	github.com/samber/lo v1.47.0
 	github.com/uptrace/bun v1.2.3
 	github.com/uptrace/bun/dialect/pgdialect v1.2.3
 	github.com/uptrace/bun/driver/pgdriver v1.2.3
 	golang.org/x/oauth2 v0.23.0
-	google.golang.org/api v0.197.0
-	google.golang.org/grpc v1.66.2
+	google.golang.org/api v0.198.0
+	google.golang.org/grpc v1.67.0
 )
 
 require (

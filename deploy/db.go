@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func OpenDB(dsn string) (*bun.DB, func()) {
+func OpenDB(dsn string) (*bun.DB, func(), error) {
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 	db := bun.NewDB(sqldb, pgdialect.New())
 
@@ -23,5 +23,5 @@ func OpenDB(dsn string) (*bun.DB, func()) {
 		err = db.Ping()
 	}
 
-	return db, closer
+	return db, closer, err
 }
