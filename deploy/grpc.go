@@ -113,6 +113,8 @@ func StartGRPCServer(port int, depsCheck func() map[string]bool) (net.Listener, 
 				healthcheck.SetServingStatus(service, healthpb.HealthCheckResponse_NOT_SERVING)
 			}
 		}
+
+		time.Sleep(5 * time.Second)
 	}
 
 	return listener, server, healthUpdater

@@ -16,7 +16,7 @@ require (
 require (
 	cloud.google.com/go/auth v0.9.4 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
-	cloud.google.com/go/compute/metadata v0.5.1 // indirect
+	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
@@ -41,7 +41,7 @@ require (
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240924160255-9d4c2d233b61 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )
