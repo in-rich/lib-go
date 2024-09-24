@@ -87,7 +87,7 @@ func CloseGRPCConn(conn *grpc.ClientConn) {
 //	defer deploy.CloseGRPCServer(listener, server)
 //	// Start healthcheck.
 //	go health()
-func StartGRPCServer(port int) (net.Listener, *grpc.Server, func()) {
+func StartGRPCServer(port int, depsCheck func() map[string]bool) (net.Listener, *grpc.Server, func()) {
 	if port == 0 {
 		log.Fatal("port is required")
 	}
@@ -105,19 +105,13 @@ func StartGRPCServer(port int) (net.Listener, *grpc.Server, func()) {
 	healthgrpc.RegisterHealthServer(server, healthcheck)
 
 	healthUpdater := func() {
-		// asynchronously inspect dependencies and toggle serving status as needed
-		next := healthpb.HealthCheckResponse_SERVING
-
-		for {
-			healthcheck.SetServingStatus("", next)
-
-			if next == healthpb.HealthCheckResponse_SERVING {
-				next = healthpb.HealthCheckResponse_NOT_SERVING
+		status := depsCheck()
+		for service, ok := range status {
+			if ok {
+				healthcheck.SetServingStatus(service, healthpb.HealthCheckResponse_SERVING)
 			} else {
-				next = healthpb.HealthCheckResponse_SERVING
+				healthcheck.SetServingStatus(service, healthpb.HealthCheckResponse_NOT_SERVING)
 			}
-
-			time.Sleep(5 * time.Second)
 		}
 	}
 
