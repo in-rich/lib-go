@@ -36,7 +36,7 @@ type GRPCCallback[In any, Out any] func(ctx context.Context, in *In, opts ...grp
 //	defer deploy.CloseGRPCConn(conn)
 //
 // This method automatically retrieves credentials under release environments.
-func OpenGRPCConn(host string) (*grpc.ClientConn, oauth2.TokenSource) {
+func OpenGRPCConn(host string, audience string) (*grpc.ClientConn, oauth2.TokenSource) {
 	var opts []grpc.DialOption
 
 	if IsReleaseEnv() {
@@ -63,7 +63,7 @@ func OpenGRPCConn(host string) (*grpc.ClientConn, oauth2.TokenSource) {
 		return conn, nil
 	}
 
-	tokenSource, err := idtoken.NewTokenSource(context.Background(), host)
+	tokenSource, err := idtoken.NewTokenSource(context.Background(), audience)
 	if err != nil {
 		log.Fatal(err, "failed to create token source")
 	}
