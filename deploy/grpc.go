@@ -47,7 +47,7 @@ func OpenGRPCConn(host string) (*grpc.ClientConn, oauth2.TokenSource) {
 
 		cred := credentials.NewTLS(&tls.Config{RootCAs: systemRoots})
 
-		opts = append(opts, grpc.WithAuthority(host), grpc.WithTransportCredentials(cred))
+		opts = append(opts, grpc.WithTransportCredentials(cred))
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
