@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
+	"github.com/samber/lo"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -16,6 +17,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"log"
 	"net"
+	"os"
 	"time"
 )
 
@@ -77,6 +79,11 @@ func CloseGRPCConn(conn *grpc.ClientConn) {
 	}
 }
 
+type DepsCheck struct {
+	Dependencies func() map[string]error
+	Services     map[string][]string
+}
+
 // StartGRPCServer starts a new GRPC server on the specified port.
 //
 // You must ensure to properly close the server when you are done, using the CloseGRPCServer method.
@@ -86,10 +93,12 @@ func CloseGRPCConn(conn *grpc.ClientConn) {
 //	defer deploy.CloseGRPCServer(listener, server)
 //	// Start healthcheck.
 //	go health()
-func StartGRPCServer(port int, depsCheck func() map[string]bool) (net.Listener, *grpc.Server, func()) {
+func StartGRPCServer(port int, depsCheck DepsCheck) (net.Listener, *grpc.Server, func()) {
 	if port == 0 {
 		log.Fatal("port is required")
 	}
+
+	errLog := log.New(os.Stderr, "grpc: ", log.LstdFlags)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
@@ -104,14 +113,31 @@ func StartGRPCServer(port int, depsCheck func() map[string]bool) (net.Listener, 
 	healthgrpc.RegisterHealthServer(server, healthcheck)
 
 	healthUpdater := func() {
-		status := depsCheck()
-		for service, ok := range status {
-			if ok {
-				healthcheck.SetServingStatus(service, healthpb.HealthCheckResponse_SERVING)
-			} else {
-				healthcheck.SetServingStatus(service, healthpb.HealthCheckResponse_NOT_SERVING)
+		dependencies := depsCheck.Dependencies()
+		global := true
+
+		for dependency, err := range dependencies {
+			if err != nil {
+				errLog.Printf("dependency check for %s failed: %v", dependency, err)
+				global = false
 			}
 		}
+
+		for service, serviceDeps := range depsCheck.Services {
+			_, hasError := lo.Find(serviceDeps, func(item string) bool {
+				return dependencies[item] != nil
+			})
+
+			healthcheck.SetServingStatus(
+				service,
+				lo.Ternary(hasError, healthpb.HealthCheckResponse_NOT_SERVING, healthpb.HealthCheckResponse_SERVING),
+			)
+		}
+
+		healthcheck.SetServingStatus(
+			"",
+			lo.Ternary(global, healthpb.HealthCheckResponse_SERVING, healthpb.HealthCheckResponse_NOT_SERVING),
+		)
 
 		time.Sleep(5 * time.Second)
 	}
