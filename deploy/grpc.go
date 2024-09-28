@@ -79,9 +79,13 @@ func CloseGRPCConn(conn *grpc.ClientConn) {
 	}
 }
 
+type DepCheckCallback func() map[string]error
+
+type DepCheckServices map[string][]string
+
 type DepsCheck struct {
-	Dependencies func() map[string]error
-	Services     map[string][]string
+	Dependencies DepCheckCallback
+	Services     DepCheckServices
 }
 
 // StartGRPCServer starts a new GRPC server on the specified port.
