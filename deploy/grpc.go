@@ -6,15 +6,14 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
-	"golang.org/x/oauth2"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/health"
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	grpcMetadata "google.golang.org/grpc/metadata"
 	"log"
 	"net"
 	"time"
@@ -36,7 +35,7 @@ type GRPCCallback[In any, Out any] func(ctx context.Context, in *In, opts ...grp
 //	defer deploy.CloseGRPCConn(conn)
 //
 // This method automatically retrieves credentials under release environments.
-func OpenGRPCConn(host string, audience string) (*grpc.ClientConn, oauth2.TokenSource) {
+func OpenGRPCConn(host string, audience string) *grpc.ClientConn {
 	var opts []grpc.DialOption
 
 	if IsReleaseEnv() {
@@ -45,9 +44,19 @@ func OpenGRPCConn(host string, audience string) (*grpc.ClientConn, oauth2.TokenS
 			log.Fatal(err, "failed to load system root CA certificates")
 		}
 
+		tokenSource, err := idtoken.NewTokenSource(context.Background(), audience)
+		if err != nil {
+			log.Fatal(err, "failed to create token source")
+		}
+
 		cred := credentials.NewTLS(&tls.Config{RootCAs: systemRoots})
 
-		opts = append(opts, grpc.WithTransportCredentials(cred))
+		opts = append(
+			opts,
+			grpc.WithTransportCredentials(cred),
+			grpc.WithAuthority(host),
+			grpc.WithPerRPCCredentials(oauth.TokenSource{TokenSource: tokenSource}),
+		)
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
@@ -58,17 +67,7 @@ func OpenGRPCConn(host string, audience string) (*grpc.ClientConn, oauth2.TokenS
 		log.Fatal(err, "failed to connect to service")
 	}
 
-	// There is no authentication required for local environments, so the token source is nil.
-	if !IsReleaseEnv() {
-		return conn, nil
-	}
-
-	tokenSource, err := idtoken.NewTokenSource(context.Background(), audience)
-	if err != nil {
-		log.Fatal(err, "failed to create token source")
-	}
-
-	return conn, tokenSource
+	return conn
 }
 
 // CloseGRPCConn closes an existing connection to a GRPC service.
@@ -128,24 +127,12 @@ func CloseGRPCServer(listener net.Listener, server *grpc.Server) {
 
 // CallGRPCEndpoint performs a call to a GRPC endpoint, located in a secure cloud environment.
 func CallGRPCEndpoint[In any, Out any](
-	ctx context.Context, callback GRPCCallback[In, Out], in *In, tokenSource oauth2.TokenSource,
+	ctx context.Context, callback GRPCCallback[In, Out], in *In,
 ) (*Out, error) {
 	// Prevent the call from tasking too long.
 	localCTX, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-
-	// tokenSource is not defined under local environments.
-	if tokenSource != nil {
-		// Retrieve an authentication token for our request.
-		token, err := tokenSource.Token()
-		if err != nil {
-			return nil, err
-		}
-
-		// Append credentials to context. Those will be automatically used by the GRPC client.
-		localCTX = grpcMetadata.AppendToOutgoingContext(localCTX, "authorization", "Bearer "+token.AccessToken)
-	}
-
+	
 	// Call the GRPC endpoint.
 	res, err := callback(localCTX, in)
 	if err != nil {
