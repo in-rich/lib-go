@@ -21,5 +21,6 @@ type GinLogger interface {
 }
 
 type GRPCLogger interface {
+	Logger
 	Report(ctx context.Context, service string, err error)
 }
