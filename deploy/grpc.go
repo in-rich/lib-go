@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
+	"github.com/in-rich/lib-go/monitor"
 	"github.com/samber/lo"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
@@ -17,7 +18,6 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"log"
 	"net"
-	"os"
 	"time"
 )
 
@@ -37,18 +37,18 @@ type GRPCCallback[In any, Out any] func(ctx context.Context, in *In, opts ...grp
 //	defer deploy.CloseGRPCConn(conn)
 //
 // This method automatically retrieves credentials under release environments.
-func OpenGRPCConn(host string) *grpc.ClientConn {
+func OpenGRPCConn(logger monitor.Logger, host string) *grpc.ClientConn {
 	var opts []grpc.DialOption
 
 	if IsReleaseEnv() {
 		systemRoots, err := x509.SystemCertPool()
 		if err != nil {
-			log.Fatal(err, "failed to load system root CA certificates")
+			logger.Fatal(err, "failed to load system root CA certificates")
 		}
 
 		tokenSource, err := idtoken.NewTokenSource(context.Background(), "https://"+host)
 		if err != nil {
-			log.Fatal(err, "failed to create token source")
+			logger.Fatal(err, "failed to create token source")
 		}
 
 		cred := credentials.NewTLS(&tls.Config{RootCAs: systemRoots})
@@ -66,7 +66,7 @@ func OpenGRPCConn(host string) *grpc.ClientConn {
 	opts = append(opts, grpc.WithDefaultServiceConfig(grpcConfig))
 	conn, err := grpc.NewClient(host, opts...)
 	if err != nil {
-		log.Fatal(err, "failed to connect to service")
+		logger.Fatal(err, "failed to connect to service")
 	}
 
 	return conn
@@ -97,16 +97,14 @@ type DepsCheck struct {
 //	defer deploy.CloseGRPCServer(listener, server)
 //	// Start healthcheck.
 //	go health()
-func StartGRPCServer(port int, depsCheck DepsCheck) (net.Listener, *grpc.Server, func()) {
+func StartGRPCServer(logger monitor.Logger, port int, depsCheck DepsCheck) (net.Listener, *grpc.Server, func()) {
 	if port == 0 {
 		log.Fatal("port is required")
 	}
 
-	errLog := log.New(os.Stderr, "grpc: ", log.LstdFlags)
-
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		logger.Fatal(err, "failed to listen")
 	}
 
 	server := grpc.NewServer()
@@ -122,7 +120,7 @@ func StartGRPCServer(port int, depsCheck DepsCheck) (net.Listener, *grpc.Server,
 
 		for dependency, err := range dependencies {
 			if err != nil {
-				errLog.Printf("dependency check for %s failed: %v", dependency, err)
+				logger.Fatal(err, fmt.Sprintf("dependency check for %s failed", dependency))
 				global = false
 			}
 		}
