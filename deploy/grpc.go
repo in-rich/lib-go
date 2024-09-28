@@ -35,7 +35,7 @@ type GRPCCallback[In any, Out any] func(ctx context.Context, in *In, opts ...grp
 //	defer deploy.CloseGRPCConn(conn)
 //
 // This method automatically retrieves credentials under release environments.
-func OpenGRPCConn(host string, audience string) *grpc.ClientConn {
+func OpenGRPCConn(host string) *grpc.ClientConn {
 	var opts []grpc.DialOption
 
 	if IsReleaseEnv() {
@@ -44,7 +44,7 @@ func OpenGRPCConn(host string, audience string) *grpc.ClientConn {
 			log.Fatal(err, "failed to load system root CA certificates")
 		}
 
-		tokenSource, err := idtoken.NewTokenSource(context.Background(), audience)
+		tokenSource, err := idtoken.NewTokenSource(context.Background(), "https://"+host)
 		if err != nil {
 			log.Fatal(err, "failed to create token source")
 		}
@@ -54,7 +54,7 @@ func OpenGRPCConn(host string, audience string) *grpc.ClientConn {
 		opts = append(
 			opts,
 			grpc.WithTransportCredentials(cred),
-			grpc.WithAuthority(host),
+			grpc.WithAuthority(host+":443"),
 			grpc.WithPerRPCCredentials(oauth.TokenSource{TokenSource: tokenSource}),
 		)
 	} else {
@@ -132,7 +132,7 @@ func CallGRPCEndpoint[In any, Out any](
 	// Prevent the call from tasking too long.
 	localCTX, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	
+
 	// Call the GRPC endpoint.
 	res, err := callback(localCTX, in)
 	if err != nil {
