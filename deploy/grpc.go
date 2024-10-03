@@ -63,7 +63,8 @@ func OpenGRPCConn(logger monitor.Logger, host string) *grpc.ClientConn {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	opts = append(opts, grpc.WithDefaultServiceConfig(grpcConfig))
+	// TODO: uncomment to enable automatic healthcheck.
+	//opts = append(opts, grpc.WithDefaultServiceConfig(grpcConfig))
 	conn, err := grpc.NewClient(host, opts...)
 	if err != nil {
 		logger.Fatal(err, "failed to connect to service")
